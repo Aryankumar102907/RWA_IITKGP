@@ -13,7 +13,7 @@ This platform **tokenizes government bonds on the blockchain**, enabling:
 - **Fractional ownership** — Invest with as little as $1
 - **Instant liquidity** — Withdraw anytime, no lock-up periods
 - **Transparent yields** — Interest distribution happens on-chain, visible to everyone
-- **Programmable finance** — Composable with other DeFi protocols
+- **Real DeFi yields** — Integrated with Aave V3 for genuine yield generation
 
 We implement the **ERC-4626 tokenized vault standard**, the industry-standard interface for yield-bearing tokens, ensuring maximum compatibility with the broader DeFi ecosystem.
 
@@ -21,65 +21,96 @@ We implement the **ERC-4626 tokenized vault standard**, the industry-standard in
 
 ## 🏗️ System Architecture
 
-Our platform consists of three core components working together:
+### Dual Architecture: Demo Mode & Production Mode
+
+Our platform supports two operational modes:
 
 ![Architecture Diagram](assets/architecture.png)
 
+#### Demo Mode (BondVault)
 | Component | Role |
 |-----------|------|
-| **MockUSDC** | Test stablecoin (ERC-20) representing the deposit asset |
-| **BondVault** | ERC-4626 vault that holds USDC and issues fBOND shares |
-| **Next.js Dashboard** | User interface for investments, withdrawals, and admin functions |
+| **MockUSDC** | Test stablecoin for demonstration |
+| **BondVault** | Admin-controlled yield simulation |
+| **Dashboard** | User interface for all operations |
 
-### How It Works
+#### Production Mode (YieldBondVault + Aave V3)
+| Component | Role |
+|-----------|------|
+| **Aave USDC** | Production stablecoin on Aave V3 |
+| **YieldBondVault** | Real yield generation via Aave lending |
+| **Aave Pool** | DeFi lending protocol providing yields |
 
-1. **User deposits USDC** into the BondVault contract
-2. **Vault mints fBOND shares** proportional to the deposit
-3. **Admin distributes yield** (simulating government interest payments)
-4. **Share price increases** as vault assets grow
-5. **User redeems shares** for USDC + earned yield
+---
+
+## 💰 How Real Yield Works (Aave V3 Integration)
+
+Unlike mock simulations, our **YieldBondVault** generates real yield through Aave V3:
+
+```
+User Deposits USDC → YieldBondVault → Aave V3 Pool (90%)
+                                    ↓
+                           Borrowers Pay Interest
+                                    ↓
+                        aUSDC Value Increases
+                                    ↓
+User Redeems yBOND → YieldBondVault ← USDC + Interest Profit
+```
+
+### Liquidity Buffer Strategy
+
+To ensure **instant withdrawals** even when funds are invested:
+
+| Allocation | Purpose |
+|------------|---------|
+| **10% Liquid** | Always available for instant withdrawals |
+| **90% In Aave** | Earning yield from the lending pool |
+
+When the buffer depletes, the vault automatically pulls from Aave to fulfill withdrawals.
 
 ---
 
 ## 🔄 Investment & Yield Cycle
 
-The following sequence diagram illustrates the complete lifecycle of an investment:
+The following sequence diagram illustrates the complete lifecycle:
 
 ![Sequence Diagram](assets/sequence.png)
 
 ### Phase 1: Investment
 - User approves the vault to spend their USDC
 - User deposits USDC into the vault
-- Vault mints equivalent fBOND shares to the user
+- Vault mints equivalent yBOND shares to the user
+- **90% of USDC is automatically supplied to Aave**
 
-### Phase 2: Yield Distribution
-- Platform admin injects yield into the vault (simulating bond interest)
-- Total vault assets increase while share count stays constant
-- **Result**: Each share is now worth more USDC
+### Phase 2: Yield Accrual
+- Aave borrowers pay interest on their loans
+- The aUSDC balance in our vault increases automatically
+- **No admin action required** — yield is real and continuous
 
 ### Phase 3: Redemption
-- User redeems their fBOND shares
-- Vault burns the shares and returns USDC + proportional yield
-- User receives more than they deposited — **profit realized**
+- User redeems their yBOND shares
+- Vault pulls from Aave if liquid buffer is insufficient
+- User receives USDC + accrued yield — **real profit**
 
 ---
 
 ## 📁 Project Structure
 
 ```
-├── contracts/              # Smart contracts (Solidity)
-│   ├── BondVault.sol       # ERC-4626 yield-bearing vault
-│   └── MockUSDC.sol        # Test stablecoin (6 decimals)
-├── script/                 
-│   └── Deploy.s.sol        # Foundry deployment script
-├── scripts/                
-│   └── export-abi.js       # ABI export utility
-├── frontend/               # Next.js 14 application
+├── contracts/
+│   ├── BondVault.sol           # Demo vault (admin-simulated yield)
+│   ├── YieldBondVault.sol      # Production vault (Aave V3 yield)
+│   ├── MockUSDC.sol            # Test stablecoin
+│   └── interfaces/
+│       ├── IPool.sol           # Aave V3 Pool interface
+│       └── IAToken.sol         # Aave aToken interface
+├── script/
+│   ├── Deploy.s.sol            # Demo contracts deployment
+│   └── DeployYieldVault.s.sol  # Aave-integrated vault deployment
+├── frontend/
 │   └── src/
-│       ├── app/            # App Router pages
-│       ├── constants/      # Contract addresses & ABIs
-│       └── ...
-├── assets/                 # Documentation images
+│       ├── app/
+│       └── constants/          # Contract addresses & ABIs
 └── README.md
 ```
 
@@ -99,28 +130,11 @@ The following sequence diagram illustrates the complete lifecycle of an investme
 git clone https://github.com/Aryankumar102907/RWA_IITKGP.git
 cd RWA_IITKGP
 
-# Install contract dependencies
 forge install
-
-# Install frontend dependencies
 cd frontend && npm install
 ```
 
-### 2. Deploy to Sepolia (Optional)
-
-If you want to deploy your own instance:
-
-```bash
-# Set your private key
-export PRIVATE_KEY=your_private_key_here
-
-# Deploy contracts
-forge script script/Deploy.s.sol --rpc-url https://rpc.ankr.com/eth_sepolia --broadcast
-
-# Update frontend/src/constants/contracts.ts with new addresses
-```
-
-### 3. Run the Frontend
+### 2. Run the Frontend
 
 ```bash
 cd frontend
@@ -129,7 +143,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### 4. Connect MetaMask
+### 3. Connect MetaMask
 
 1. Switch MetaMask to **Sepolia Testnet**
 2. Ensure you have Sepolia ETH for gas
@@ -139,10 +153,18 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## 📜 Deployed Contracts (Sepolia Testnet)
 
+### Demo Contracts (Mock Yield Simulation)
 | Contract | Address | Etherscan |
 |----------|---------|-----------|
 | MockUSDC | `0x231cfdb3ef3fcdd8ca58b9bac7d627975a9df4e8` | [View](https://sepolia.etherscan.io/address/0x231cfdb3ef3fcdd8ca58b9bac7d627975a9df4e8) |
 | BondVault | `0x9f03b9845a905cdcd66ff3bfde147a38250aa351` | [View](https://sepolia.etherscan.io/address/0x9f03b9845a905cdcd66ff3bfde147a38250aa351) |
+
+### Production Contracts (Aave V3 Real Yield)
+| Contract | Address | Etherscan |
+|----------|---------|-----------|
+| YieldBondVault | `0xca1F1F003a964Cbe54312A141FE45c9387bBab0E` | [View](https://sepolia.etherscan.io/address/0xca1F1F003a964Cbe54312A141FE45c9387bBab0E) |
+| Aave USDC | `0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8` | [View](https://sepolia.etherscan.io/address/0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8) |
+| Aave Pool | `0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951` | [View](https://sepolia.etherscan.io/address/0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951) |
 
 ---
 
@@ -150,11 +172,12 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 | Feature | Description |
 |---------|-------------|
-| **ERC-4626 Standard** | Industry-standard tokenized vault interface for yield-bearing assets |
-| **Yield Simulation** | Admin function to inject yield, demonstrating how bond interest increases share value |
-| **Modern UI/UX** | Dark-themed dashboard with real-time balance updates and intuitive controls |
-| **Web3 Integration** | Seamless wallet connection via RainbowKit with Wagmi hooks |
-| **Sepolia Testnet** | Fully functional on Ethereum's test network for risk-free demonstration |
+| **ERC-4626 Standard** | Industry-standard tokenized vault interface |
+| **Aave V3 Integration** | Real yield generation from DeFi lending |
+| **Liquidity Buffer** | 10% liquid for instant withdrawals |
+| **Dual Mode** | Demo simulation + Production Aave integration |
+| **Modern UI/UX** | Dark-themed dashboard with real-time updates |
+| **Web3 Ready** | RainbowKit + Wagmi for seamless wallet connection |
 
 ---
 
@@ -162,8 +185,9 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ### Smart Contracts
 - **Solidity 0.8.20** — Contract language
-- **OpenZeppelin** — Audited contract libraries (ERC-20, ERC-4626, Ownable)
-- **Foundry** — Development, testing, and deployment toolkit
+- **OpenZeppelin** — Audited libraries (ERC-20, ERC-4626, Ownable)
+- **Aave V3** — DeFi lending protocol for yield generation
+- **Foundry** — Development, testing, deployment
 
 ### Frontend
 - **Next.js 14** — React framework with App Router
@@ -180,10 +204,10 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## 🎯 Use Cases
 
-1. **Retail Bond Access** — Enable small investors to participate in government bond yields
-2. **DeFi Composability** — fBOND shares can be used as collateral in other protocols
-3. **Transparent Finance** — All transactions and yields are visible on-chain
-4. **Education** — Demonstrates ERC-4626 vault mechanics for learning purposes
+1. **Retail Bond Access** — Small investors can participate in yields previously reserved for institutions
+2. **DeFi Composability** — yBOND shares can be used as collateral in other DeFi protocols
+3. **Transparent Finance** — All transactions and yields are visible and verifiable on-chain
+4. **Instant Liquidity** — No lock-up periods, withdraw anytime with real yields
 
 ---
 
